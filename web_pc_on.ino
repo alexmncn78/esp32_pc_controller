@@ -6,7 +6,7 @@ WiFiServer server(puerto);
 
 //---------------------Credenciales de WiFi-----------------------
 
-//Wifi piso linares
+//Wifi piso
 const char* ssid_piso     = "MiFibra-0A20-24G";
 const char* password_piso = "9XKrvXK2";
 
@@ -101,6 +101,19 @@ void setup() {
 
 }
 
+void PC_ON(){
+  //Mandamos señal para encender
+  digitalWrite(PIN_ON, HIGH); // Enciende el pin
+  delay(500); // Espera 0.5 segundos
+  digitalWrite(PIN_ON, LOW); // Apaga el pin
+
+  //depuración
+  Serial.println("PC on");
+  digitalWrite(LED_BUILTIN, HIGH);
+  delay(2000);
+  digitalWrite(LED_BUILTIN, LOW);
+}
+
 //----------------------------LOOP----------------------------------
 
 void loop(){
@@ -125,16 +138,7 @@ void loop(){
             
             // enciende y apaga el GPIO
             if (header.indexOf("GET /on") >= 0) {
-              //Mandamos señal para encender
-              digitalWrite(PIN_ON, HIGH); // Enciende el pin
-              delay(500); // Espera 0.5 segundos
-              digitalWrite(PIN_ON, LOW); // Apaga el pin
-
-              //depuración
-              Serial.println("PC on");
-              digitalWrite(LED_BUILTIN, HIGH);
-              delay(2000);
-              digitalWrite(LED_BUILTIN, LOW);
+              PC_ON();
 
             } else if (header.indexOf("GET /off") >= 0) {
                 //nada 
