@@ -1,5 +1,7 @@
 #include <WiFi.h>
 
+#include <secrets.h>
+
 //------------------Servidor Web en puerto X ---------------------
 short puerto = 80;
 WiFiServer server(puerto);
@@ -23,19 +25,22 @@ String header; // Variable para guardar el HTTP request
 
 //------------------------CODIGO HTML------------------------------
 String pagina = "<!DOCTYPE html>"
-"<html>"
-"<head>"
-"<meta charset='utf-8' />"
-"<title>Servidor Web ESP32</title>"
-"</head>"
-"<body>"
-"<center>"
-"<h1>Servidor Web ESP32</h1>"
-"<p><a href='/on'><button style='height:50px;width:100px'>ON</button></a></p>"
-"<p><a href='/off'><button style='height:50px;width:100px'>OFF</button></a></p>"
-"</center>"
-"</body>"
-"</html>";
+                "<html>"
+                "<head>"
+                "<meta charset='utf-8' />"
+                "<title>Servidor Web ESP32</title>"
+                "</head>"
+                "<body>"
+                "<center>"
+                "<h1>Servidor Web ESP32</h1>"
+                "<form action='/control' method='GET'>"
+                "<input name='secret_class'>"
+                "<button type='submit' name='on' value='ON' style='height:50px;width:100px'>ON</button>"
+                "<button type='submit' name='off' value='OFF' style='height:50px;width:100px'>OFF</button>"
+                "</form>"
+                "</center>"
+                "</body>"
+                "</html>";
 
 
 //---------------------------SETUP--------------------------------
@@ -137,11 +142,18 @@ void loop(){
             client.println();
             
             // enciende y apaga el GPIO
-            if (header.indexOf("GET /on") >= 0) {
-              PC_ON();
-
-            } else if (header.indexOf("GET /off") >= 0) {
-                //nada 
+            if (header.indexOf("GET /control") >= 0) {
+              if (header.indexOf("GET /control?secret_class="+ PC_ON_KEY +"&on=ON") >= 0) {
+                PC_ON();
+                // Handle OFF request here if needed
+              } else {
+                // If the secret class doesn't match, send an error response
+                client.println("HTTP/1.1 403 Forbidden");
+                client.println("Content-type:text/html");
+                client.println("Connection: close");
+                client.println();
+                client.println("<h1>Forbidden</h1><p>You don't have permission to access this resource.</p>");
+              }
             }
               
             // Muestra la página web
