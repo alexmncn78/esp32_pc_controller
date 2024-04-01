@@ -1,4 +1,6 @@
 #include <WiFi.h>
+#include <ArduinoJson.h>
+#include "DHT.h"
 
 #include <secrets.h>
 
@@ -21,7 +23,12 @@ short contconexion = 0;
 
 String header; // Variable para guardar el HTTP request
 
-#define PIN_ON 6 //Pin para la señal de encendido
+#define PIN_PC_ON 6 //Pin para la señal de encendido
+
+#define DHT_PIN 17     // Pin GPIO al que está conectado el sensor DHT22
+#define DHT_TYPE DHT22 // Tipo de sensor DHT
+
+DHT dht(DHT_PIN, DHT_TYPE);
 
 //------------------------CODIGO HTML------------------------------
 String pagina = "<!DOCTYPE html>"
@@ -48,7 +55,7 @@ void setup() {
   Serial.begin(115200);
   Serial.println("");
 
-  pinMode(PIN_ON, OUTPUT);
+  pinMode(PIN_PC_ON, OUTPUT);
 
   // Conexión WIFI
   short estado;
@@ -108,15 +115,31 @@ void setup() {
 
 void PC_ON(){
   //Mandamos señal para encender
-  digitalWrite(PIN_ON, HIGH); // Enciende el pin
+  digitalWrite(PIN_PC_ON, HIGH); // Enciende el pin
   delay(500); // Espera 0.5 segundos
-  digitalWrite(PIN_ON, LOW); // Apaga el pin
+  digitalWrite(PIN_PC_ON, LOW); // Apaga el pin
 
   //depuración
   Serial.println("PC on");
   digitalWrite(LED_BUILTIN, HIGH);
   delay(2000);
   digitalWrite(LED_BUILTIN, LOW);
+}
+
+bool getTemperatureAndHumidity(float &temperature, float &humidity) {
+  dht.begin();
+  // Intenta leer datos del sensor
+  float temp = dht.readTemperature();
+  float hum = dht.readHumidity();
+
+  // Verifica si la lectura fue exitosa
+  if (isnan(temp) || isnan(hum)) {
+    return false; // Error al leer datos del sensor, no devuelve nada
+  } else {
+    temperature = temp;
+    humidity = hum;
+    return true; // Lee datos correctamente y los devuelve
+  }
 }
 
 //----------------------------LOOP----------------------------------
@@ -136,16 +159,11 @@ void loop(){
           // si la nueva linea está en blanco significa que es el fin del 
           // HTTP request del cliente, entonces respondemos:
           if (currentLine.length() == 0) {
-            client.println("HTTP/1.1 200 OK");
-            client.println("Content-type:text/html");                                                
-            client.println("Connection: close");
-            client.println();
-            
+
             // enciende y apaga el GPIO
             if (header.indexOf("GET /control") >= 0) {
-              if (header.indexOf("GET /control?secret_class="+ PC_ON_KEY +"&on=ON") >= 0) {
+              if (header.indexOf("GET /control?secret_class="+ String(PC_ON_KEY) +"&on=ON") >= 0) {
                 PC_ON();
-                // Handle OFF request here if needed
               } else {
                 // If the secret class doesn't match, send an error response
                 client.println("HTTP/1.1 403 Forbidden");
@@ -154,6 +172,41 @@ void loop(){
                 client.println();
                 client.println("<h1>Forbidden</h1><p>You don't have permission to access this resource.</p>");
               }
+            } else if (header.indexOf("GET /getTempAndHumd") >= 0) {
+              // Iniciar la comunicación con el sensor DHT y obtener la temperatura y humedad
+              float temperature, humidity;
+              bool success = getTemperatureAndHumidity(temperature, humidity);
+
+              Serial.print(temperature);
+              Serial.print(humidity);
+
+              // Crear un objeto JSON para almacenar los datos de temperatura y humedad
+              DynamicJsonDocument doc(200);
+              doc["temperature"] = success ? temperature : NAN; // Si la lectura falla, establece NaN (Not a Number)
+              doc["humidity"] = success ? humidity : NAN;
+
+              // Convertir el objeto JSON en una cadena
+              String response;
+              serializeJson(doc, response);
+
+              // Enviar la respuesta al cliente
+              client.print("HTTP/1.1 200 OK\r\n");
+              client.print("Content-Type: application/json\r\n");
+              client.print("Connection: close\r\n");  // Cierra la conexión después de enviar la respuesta
+              client.println("Content-Length: " + String(response.length()));
+              client.println();
+              client.println(response);
+
+              // Esperar un momento para que el cliente reciba los datos
+              delay(10);
+
+              // Cerrar la conexión con el cliente
+              client.stop();
+            } else { // Default
+              client.println("HTTP/1.1 200 OK");
+              client.println("Content-type:text/html");                                                
+              client.println("Connection: close");
+              client.println();
             }
               
             // Muestra la página web
